@@ -1,8 +1,9 @@
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useStore } from '../store';
-import { generateId } from '../providers/index';
+import { useI18n } from '../i18n/index';
 
 export function ChatPanel() {
+  const t = useI18n().t;
   const currentChatId = useStore((s) => s.currentChatId);
   const chats = useStore((s) => s.chats);
   const messages = currentChatId ? chats[currentChatId] ?? [] : [];
@@ -11,7 +12,6 @@ export function ChatPanel() {
   const sendMessage = useStore((s) => s.sendMessage);
   const selectedModelName = useStore((s) => s.selectedModelName);
   const selectedModel = useStore((s) => s.selectedModel);
-  const apiKeys = useStore((s) => s.apiKeys);
   const setActiveTab = useStore((s) => s.setActiveTab);
   const hasKey = useStore((s) => s.hasValidKey);
 
@@ -19,16 +19,10 @@ export function ChatPanel() {
   const endRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
-  // 自动滚动
-  const scrollToBottom = useCallback(() => {
-    endRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, []);
-
   useEffect(() => {
-    scrollToBottom();
-  }, [messages, streamContent, scrollToBottom]);
+    endRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages, streamContent]);
 
-  // Ctrl+Enter / Cmd+Enter 发送
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
       e.preventDefault();
@@ -39,12 +33,10 @@ export function ChatPanel() {
   const handleSend = async () => {
     const content = input.trim();
     if (!content || streaming) return;
-
     if (!hasKey(selectedModel)) {
       setActiveTab('settings');
       return;
     }
-
     setInput('');
     await sendMessage(content);
   };
@@ -52,11 +44,11 @@ export function ChatPanel() {
   // 空状态
   if (!currentChatId) {
     return (
-      <div className="flex-1 flex items-center justify-center text-gray-500 select-none">
-        <div className="text-center space-y-3">
+      <div className="flex-1 flex items-center justify-center select-none" style={{ color: 'var(--text-muted)' }}>
+        <div className="text-center space-y-2">
           <div className="text-4xl">🪐</div>
-          <p className="text-lg">Select a model to start</p>
-          <p className="text-sm">Choose from the sidebar or press Settings to configure API keys</p>
+          <p className="text-base">{t('model.select_hint')}</p>
+          <p className="text-xs" style={{ color: 'var(--text-dim)' }}>{t('model.configure')}</p>
         </div>
       </div>
     );
@@ -67,64 +59,56 @@ export function ChatPanel() {
       {/* 消息列表 */}
       <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3 custom-scroll">
         {messages.map((msg) => (
-          <div
-            key={msg.id}
-            className={`msg-enter flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
-          >
+          <div key={msg.id} className={`msg-enter flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
             <div
-              className={`max-w-[75%] rounded-xl px-4 py-3 ${
-                msg.role === 'user'
-                  ? 'bg-accent-blue/10 text-gray-100 border border-accent-blue/20'
-                  : 'bg-surface-overlay text-gray-200 border border-gray-800/50'
-              }`}
+              className="max-w-[75%] rounded-xl px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap break-words"
+              style={{
+                background: msg.role === 'user' ? 'color-mix(in srgb, var(--accent-blue) 10%, var(--bg-overlay))' : 'var(--bg-overlay)',
+                color: 'var(--text-primary)',
+                border: msg.role === 'user' ? '1px solid color-mix(in srgb, var(--accent-blue) 20%, transparent)' : '1px solid var(--border)',
+              }}
             >
-              {/* 角色标签 */}
-              <div className="flex items-center gap-2 mb-1.5 text-xs text-gray-500">
-                <span>{msg.role === 'user' ? '🧑 You' : `🤖 ${msg.model ?? 'AI'}`}</span>
+              <div className="flex items-center gap-2 mb-1 text-xs" style={{ color: 'var(--text-dim)' }}>
+                <span>{msg.role === 'user' ? `🧑 ${t('chat.you')}` : `🤖 ${msg.model ?? 'AI'}`}</span>
                 {msg.tokenUsage && (
-                  <span className="text-gray-600">
-                    · {msg.tokenUsage.total} tokens · ${msg.tokenUsage.totalCost?.toFixed(4)}
+                  <span style={{ color: 'var(--text-dim)' }}>
+                    · {msg.tokenUsage.total} {t('chat.tokens')} · ${msg.tokenUsage.totalCost?.toFixed(4)}
                   </span>
                 )}
               </div>
-
-              {/* 内容 */}
-              <div className="text-sm leading-relaxed whitespace-pre-wrap break-words">
-                {msg.content}
-              </div>
+              <div>{msg.content}</div>
             </div>
           </div>
         ))}
 
-        {/* 当前正在 streaming 的消息 */}
+        {/* Streaming */}
         {streaming && streamContent && (
           <div className="flex justify-start msg-enter">
-            <div className="max-w-[75%] rounded-xl px-4 py-3 bg-surface-overlay text-gray-200 border border-gray-800/50">
-              <div className="flex items-center gap-2 mb-1.5 text-xs text-gray-500">
+            <div
+              className="max-w-[75%] rounded-xl px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap break-words cursor-blink"
+              style={{ background: 'var(--bg-overlay)', color: 'var(--text-primary)', border: '1px solid var(--border)' }}
+            >
+              <div className="flex items-center gap-2 mb-1 text-xs" style={{ color: 'var(--text-dim)' }}>
                 <span>🤖 {selectedModelName}</span>
-                <span className="text-accent-green animate-pulse">● generating</span>
+                <span className="animate-pulse" style={{ color: 'var(--accent-green)' }}>● {t('chat.generating')}</span>
               </div>
-              <div className="text-sm leading-relaxed whitespace-pre-wrap break-words cursor-blink">
-                {streamContent}
-              </div>
+              <div>{streamContent}</div>
             </div>
           </div>
         )}
 
-        {/* 空白占位 */}
+        {/* Loading dots */}
         {streaming && !streamContent && (
           <div className="flex justify-start msg-enter">
-            <div className="bg-surface-overlay border border-gray-800/50 rounded-xl px-4 py-3">
+            <div style={{ background: 'var(--bg-overlay)', border: '1px solid var(--border)' }} className="rounded-xl px-4 py-3">
               <div className="flex items-center gap-1.5">
-                <span className="w-2 h-2 bg-accent-blue rounded-full animate-bounce" />
-                <span
-                  className="w-2 h-2 bg-accent-blue rounded-full animate-bounce"
-                  style={{ animationDelay: '0.15s' }}
-                />
-                <span
-                  className="w-2 h-2 bg-accent-blue rounded-full animate-bounce"
-                  style={{ animationDelay: '0.3s' }}
-                />
+                {[0, 1, 2].map((i) => (
+                  <span
+                    key={i}
+                    className="w-2 h-2 rounded-full animate-bounce"
+                    style={{ background: 'var(--accent-blue)', animationDelay: `${i * 0.15}s` }}
+                  />
+                ))}
               </div>
             </div>
           </div>
@@ -134,32 +118,43 @@ export function ChatPanel() {
       </div>
 
       {/* 输入区 */}
-      <div className="shrink-0 border-t border-gray-800/50 bg-surface-raised px-4 py-3">
+      <div
+        className="shrink-0 px-4 py-3"
+        style={{ borderTop: '1px solid var(--border)', background: 'var(--bg-raised)' }}
+      >
         <div className="flex gap-2 max-w-4xl mx-auto">
           <textarea
             ref={inputRef}
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder={
-              hasKey(selectedModel)
-                ? `Message ${selectedModelName}... (Ctrl+Enter to send)`
-                : '⚠️ Set API key in Settings first'
-            }
+            placeholder={hasKey(selectedModel) ? t('chat.placeholder') : t('chat.no_key')}
             rows={1}
-            className="flex-1 bg-surface-overlay border border-gray-700/50 rounded-xl px-4 py-3 text-sm text-gray-100 placeholder-gray-600 outline-none focus:border-accent-blue/50 resize-none transition-colors"
+            className="flex-1 rounded-xl px-4 py-3 text-sm outline-none resize-none transition-colors"
+            style={{
+              background: 'var(--bg-input)',
+              color: 'var(--text-primary)',
+              border: '1px solid var(--border-strong)',
+            }}
             disabled={streaming}
+            onFocus={(e) => (e.currentTarget.style.borderColor = 'color-mix(in srgb, var(--accent-blue) 50%, transparent)')}
+            onBlur={(e) => (e.currentTarget.style.borderColor = 'var(--border-strong)')}
           />
           <button
             onClick={handleSend}
             disabled={!input.trim() || streaming}
-            className="shrink-0 px-4 py-3 bg-accent-blue hover:bg-accent-blue/80 disabled:opacity-30 disabled:cursor-not-allowed rounded-xl transition-all text-sm font-medium"
+            className="shrink-0 px-4 py-3 rounded-xl transition-all text-sm font-medium"
+            style={{
+              background: 'var(--accent-blue)',
+              color: '#fff',
+              opacity: !input.trim() || streaming ? 0.3 : 1,
+            }}
           >
-            {streaming ? '...' : 'Send'}
+            {t('chat.send')}
           </button>
         </div>
-        <div className="mt-1 text-center text-[10px] text-gray-600">
-          Ctrl+Enter to send · Tokens are counted live
+        <div className="mt-1 text-center text-[10px]" style={{ color: 'var(--text-dim)' }}>
+          {t('chat.shortcut_hint')}
         </div>
       </div>
     </div>

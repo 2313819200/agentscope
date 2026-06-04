@@ -1,0 +1,25 @@
+{
+  appId: "com.agentscope.app",
+  productName: "AgentScope",
+  copyright: "MIT",
+  directories: {
+    output: "release",
+  },
+  win: {
+    target: ["nsis"],
+    icon: null,
+  },
+  nsis: {
+    oneClick: false,
+    allowToChangeInstallationDirectory: true,
+    createDesktopShortcut: true,
+  },
+  files: [
+    "dist/**/*",
+    "electron/**/*",
+    "package.json",
+  ],
+  extraMetadata: {
+    main: "electron/main.cjs",
+  },
+}

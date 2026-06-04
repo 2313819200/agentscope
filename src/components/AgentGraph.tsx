@@ -15,8 +15,7 @@ import {
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import { useStore } from '../store';
-
-// ──── 自定义节点 ────
+import { useI18n } from '../i18n/index';
 
 function BaseNode({ data, selected }: NodeProps) {
   const d = data as Record<string, unknown>;
@@ -27,35 +26,38 @@ function BaseNode({ data, selected }: NodeProps) {
   const tokens = d.tokens as number | undefined;
 
   const colors: Record<string, string> = {
-    model: 'border-accent-blue bg-accent-blue/5',
-    agent: 'border-accent-purple bg-accent-purple/5',
-    tool: 'border-accent-amber bg-accent-amber/5',
-    user: 'border-accent-green bg-accent-green/5',
-    system: 'border-accent-rose bg-accent-rose/5',
+    model: 'var(--accent-blue)',
+    agent: 'var(--accent-purple)',
+    tool: 'var(--accent-amber)',
+    user: 'var(--accent-green)',
+    system: 'var(--accent-rose)',
   };
 
   const borderColor = colors[nodeType] ?? colors.model;
 
   return (
     <div
-      className={`px-3 py-2 rounded-xl border-2 text-xs min-w-[120px] ${borderColor} ${
-        selected ? 'ring-2 ring-accent-blue/50' : ''
-      }`}
+      className="px-3 py-2 rounded-xl border-2 text-xs min-w-[120px]"
+      style={{
+        borderColor,
+        background: `color-mix(in srgb, ${borderColor} 8%, var(--bg-overlay))`,
+        outline: selected ? `2px solid color-mix(in srgb, ${borderColor} 50%, transparent)` : 'none',
+      }}
     >
-      <Handle type="target" position={Position.Left} className="!bg-gray-500" />
+      <Handle type="target" position={Position.Left} style={{ background: 'var(--text-muted)' }} />
       <div className="flex items-center gap-2">
         <span className="text-base">{icon}</span>
         <div>
-          <div className="font-medium text-gray-200">{label}</div>
-          {subtitle && (
-            <div className="text-gray-500 text-[10px] mt-0.5">{subtitle}</div>
-          )}
+          <div style={{ color: 'var(--text-secondary)', fontWeight: 500 }}>{label}</div>
+          {subtitle && <div style={{ color: 'var(--text-dim)', fontSize: '10px', marginTop: '1px' }}>{subtitle}</div>}
         </div>
       </div>
       {tokens !== undefined && (
-        <div className="mt-1 text-[10px] text-gray-500">∑ {tokens.toLocaleString()} tokens</div>
+        <div style={{ color: 'var(--text-dim)', fontSize: '10px', marginTop: '4px' }}>
+          ∑ {tokens.toLocaleString()} tokens
+        </div>
       )}
-      <Handle type="source" position={Position.Right} className="!bg-gray-500" />
+      <Handle type="source" position={Position.Right} style={{ background: 'var(--text-muted)' }} />
     </div>
   );
 }
@@ -86,22 +88,22 @@ function makeEdge(
   };
 }
 
-// ──── 主组件 ────
-
 export function AgentGraph() {
   const sessions = useStore((s) => s.monitorSessions);
   const totalTokens = useStore((s) => s.totalTokens);
+  const { t } = useI18n();
+
+  const graphKey = useMemo(() => sessions.map((s) => s.id).join(','), [sessions]);
 
   const { nodes: initialNodes, edges: initialEdges } = useMemo(() => {
     const nodes: Node[] = [
       makeNode('root', 250, 50, {
         nodeType: 'system',
-        label: 'AgentScope Hub',
+        label: t('graph.hub'),
         icon: '🪐',
-        subtitle: `${sessions.length} active sessions`,
+        subtitle: `${sessions.length} ${t('monitor.sessions')}`,
       }),
     ];
-
     const edges: Edge[] = [];
 
     sessions.forEach((session, i) => {
@@ -115,10 +117,8 @@ export function AgentGraph() {
           tokens: session.tokenUsage?.total,
         })
       );
-
       edges.push(makeEdge(`root-${session.id}`, 'root', session.id, {
-        animated: session.status === 'running',
-        color: '#6366f1',
+        animated: session.status === 'running', color: '#6366f1',
       }));
 
       session.tools.forEach((tool, j) => {
@@ -132,8 +132,7 @@ export function AgentGraph() {
           })
         );
         edges.push(makeEdge(`${session.id}-${toolId}`, session.id, toolId, {
-          animated: true,
-          color: '#f59e0b',
+          animated: true, color: '#f59e0b',
         }));
       });
     });
@@ -143,34 +142,27 @@ export function AgentGraph() {
       nodes.push(
         makeNode('tokens', 250, 150 + sessions.length * 120 + 50, {
           nodeType: 'model',
-          label: 'Token Usage',
+          label: t('graph.token_usage'),
           icon: '📊',
-          subtitle: `${totalTokens.total.toLocaleString()} total`,
+          subtitle: `${totalTokens.total.toLocaleString()} ${t('chat.tokens')}`,
         })
       );
       edges.push(makeEdge('root-tokens', lastId, 'tokens', { color: '#10b981', dashed: true }));
     }
 
     return { nodes, edges };
-  }, [sessions, totalTokens]);
+  }, [sessions, totalTokens, t]);
 
-  const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
-  const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
-
-  // Sync when sessions change (since useNodesState captures initial only)
-  // We use a key to force remount
-  const graphKey = useMemo(() => sessions.map((s) => s.id).join(','), [sessions]);
+  const [nodes, , onNodesChange] = useNodesState(initialNodes);
+  const [edges, , onEdgesChange] = useEdgesState(initialEdges);
 
   if (sessions.length === 0) {
     return (
-      <div className="flex-1 flex items-center justify-center text-gray-500 select-none">
-        <div className="text-center space-y-3">
+      <div className="flex-1 flex items-center justify-center select-none" style={{ color: 'var(--text-muted)' }}>
+        <div className="text-center space-y-2">
           <div className="text-4xl">🕸️</div>
-          <p className="text-lg">No Graph Data</p>
-          <p className="text-sm max-w-md">
-            Connect to an agent monitor and run some sessions to see the graph.
-            Each agent session and tool call will appear here.
-          </p>
+          <p className="text-base">{t('graph.no_data')}</p>
+          <p className="text-xs max-w-md" style={{ color: 'var(--text-dim)' }}>{t('graph.hint')}</p>
         </div>
       </div>
     );
@@ -187,13 +179,12 @@ export function AgentGraph() {
         fitView
         minZoom={0.3}
         maxZoom={2}
-        className="bg-surface"
         proOptions={{ hideAttribution: true }}
       >
         <Background color="#1a1a2e" gap={20} />
-        <Controls className="!bg-surface-raised !border-gray-800 !text-gray-400" />
+        <Controls className="!bg-surface-raised !border-border !text-muted" />
         <MiniMap
-          className="!bg-surface-raised !border-gray-800"
+          className="!bg-surface-raised !border-border"
           nodeColor="#3b82f6"
           maskColor="rgba(10,10,15,0.8)"
         />

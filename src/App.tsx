@@ -1,4 +1,5 @@
-import { Layout } from './components/Layout';
+import { ThemeProvider } from './theme';
+import { I18nProvider } from './i18n/index';
 import { Sidebar } from './components/Sidebar';
 import { ChatPanel } from './components/ChatPanel';
 import { MonitorPanel } from './components/MonitorPanel';
@@ -7,20 +8,14 @@ import { SettingsPanel } from './components/SettingsPanel';
 import { TokenBar } from './components/TokenBar';
 import { useStore } from './store';
 
-export default function App() {
+function AppContent() {
   const activeTab = useStore((s) => s.activeTab);
 
   return (
-    <div className="h-screen flex flex-col bg-surface text-gray-100 overflow-hidden">
-      {/* 顶部 Token 条 */}
+    <div className="h-screen flex flex-col overflow-hidden" style={{ background: 'var(--bg-surface)', color: 'var(--text-primary)' }}>
       <TokenBar />
-
-      {/* 主体 */}
       <div className="flex-1 flex overflow-hidden">
-        {/* 侧边栏 */}
         <Sidebar />
-
-        {/* 主面板 */}
         <main className="flex-1 flex flex-col overflow-hidden">
           {activeTab === 'chat' && <ChatPanel />}
           {activeTab === 'monitor' && <MonitorPanel />}
@@ -29,5 +24,15 @@ export default function App() {
         </main>
       </div>
     </div>
+  );
+}
+
+export default function App() {
+  return (
+    <ThemeProvider>
+      <I18nProvider>
+        <AppContent />
+      </I18nProvider>
+    </ThemeProvider>
   );
 }
