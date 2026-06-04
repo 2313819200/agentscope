@@ -1,0 +1,23 @@
+version: "3.9"
+
+services:
+  agentscope:
+    build: .
+    container_name: agentscope
+    ports:
+      - "3333:80"
+    restart: unless-stopped
+
+  # ──── OpenClaw Gateway（可选，同机部署） ────
+  # 取消注释即可一起启动
+  #
+  # openclaw:
+  #   image: openclaw/gateway:latest
+  #   container_name: openclaw
+  #   ports:
+  #     - "1177:1177"
+  #   volumes:
+  #     - ./openclaw-config:/config
+  #   environment:
+  #     - OPENCLAW_HOME=/config
+  #   restart: unless-stopped
