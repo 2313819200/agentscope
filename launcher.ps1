@@ -1,58 +1,48 @@
 # AgentScope 桌面启动器
-# 使用 Windows 原生 WebView2，零依赖运行
+param([switch]$Dev)
 
-param(
-  [switch]$Dev,
-  [switch]$NoServer
-)
-
-$ErrorActionPreference = "Stop"
 $AppDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 
-# 确保 Vite 开发服务器在运行
-if (-not $NoServer) {
-  $vite = Get-Process -Name "node" -ErrorAction SilentlyContinue | Where-Object { $_.CommandLine -like "*vite*" }
-  if (-not $vite -or $Dev) {
-    $viteDir = if ($Dev) { $AppDir } else { $AppDir }
-    Start-Process -NoNewWindow -FilePath "npx" -ArgumentList "vite --port 3333" -WorkingDirectory $viteDir
-    Start-Sleep 2
-  }
+# 确保 Vite 在跑
+$viteRunning = $false
+try {
+  $res = Invoke-WebRequest -Uri "http://localhost:3333" -TimeoutSec 2 -ErrorAction Stop
+  $viteRunning = $res.StatusCode -eq 200
+} catch {}
+
+if (-not $viteRunning) {
+  Write-Host "Starting dev server..."
+  $psi = New-Object System.Diagnostics.ProcessStartInfo
+  $psi.FileName = "npx"
+  $psi.Arguments = "vite --port 3333"
+  $psi.WorkingDirectory = $AppDir
+  $psi.UseShellExecute = $true
+  $psi.CreateNoWindow = $false
+  [System.Diagnostics.Process]::Start($psi) | Out-Null
+  Start-Sleep 3
 }
 
-$url = if ($Dev) { "http://localhost:3333" } else { "file:///$($AppDir.Replace('\','/'))/dist/index.html" }
+try {
+  # 用 Windows 原生 WebView2 创建桌面窗口
+  Add-Type -AssemblyName PresentationCore, PresentationFramework, WindowsBase
 
-# 创建 WPF WebView2 窗口
-Add-Type -AssemblyName PresentationCore, PresentationFramework, WindowsBase
-
-$xaml = @"
+  $xaml = @"
 <Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-        Title="AgentScope · 观星台"
-        Width="1200" Height="800" WindowStartupLocation="CenterScreen"
+        Title="AgentScope"
+        Width="1200" Height="800"
+        WindowStartupLocation="CenterScreen"
         Background="#0a0a0f">
   <Grid>
-    <WebView2 x:Name="web" Source="$url" />
+    <WebView2 x:Name="web" Source="http://localhost:3333" />
   </Grid>
 </Window>
 "@
 
-$reader = [System.Xml.XmlReader]::Create([System.IO.StringReader]($xaml))
-$window = [System.Windows.Markup.XamlReader]::Load($reader)
-
-# 确保 WebView2 可用
-try {
-  $window.web.EnsureCoreWebView2Async().Wait()
-  $window.web.CoreWebView2.Settings.AreDevToolsEnabled = $false
-  $window.web.CoreWebView2.Settings.IsStatusBarEnabled = $false
+  $reader = [System.Xml.XmlReader]::Create([System.IO.StringReader]$xaml)
+  $window = [System.Windows.Markup.XamlReader]::Load($reader)
+  $window.ShowDialog() | Out-Null
 } catch {
-  # WebView2 可能没装，fallback 到浏览器
-  Start-Process $url
-  Write-Warning "WebView2 未安装，已用浏览器打开。"
-  return
+  # WebView2 不可用，用浏览器打开
+  Write-Host "Falling back to browser..."
+  Start-Process "http://localhost:3333"
 }
-
-$window.Closed.Add({
-  # 关闭时停止 Vite
-  Get-Process -Name "node" -ErrorAction SilentlyContinue | Where-Object { $_.CommandLine -like "*vite*" } | Stop-Process -Force
-})
-
-[System.Windows.Application]::new().Run($window)
